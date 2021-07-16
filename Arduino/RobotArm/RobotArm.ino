@@ -10,6 +10,9 @@
 #define IRDown 3927310080
 #define IRClose 4161273600
 #define IROpen 4127850240
+#define IRWave 4077715200
+#define IRParade 3877175040
+#define IRCrazy 2707357440
 #define IRPin 3
 
 /** Motor Constants **/
@@ -63,7 +66,7 @@ void setup() {
 void loop() {
 
   handleSerialInput();
-  handleIRInput();
+  handleIRInput();  
   rotate(currentControl);
   moveArm(currentControl);
   openCloseClaw(currentControl);
@@ -73,6 +76,7 @@ void loop() {
 void handleIRInput(){
   if(irrecv.decode()){
     if(irrecv.decodedIRData.decodedRawData != IRRepeat){
+      Serial.println(irrecv.decodedIRData.decodedRawData);
       switch(irrecv.decodedIRData.decodedRawData){
         case IRLeft:
           currentControl = LEFT;
@@ -94,6 +98,15 @@ void handleIRInput(){
           break;
         case IRClose:
           currentControl = CLOSE;
+          break;
+        case IRWave:
+          wave();
+          break;
+        case IRParade:
+          paradeWave();
+          break;
+        case IRCrazy:
+          goCrazy();
           break;
       }
     }
@@ -221,5 +234,41 @@ void closeClaw(){
     
   for(int i = currentClawPosition; i < clawPositionClosed; i++){
     addClawIncrement(i);
+  }
+}
+
+void wave(){
+  for(int numWaves = 0; numWaves < 3; numWaves++){
+    for(int i = currentClawPosition; i > 1400; i--){
+        clawServo.writeMicroseconds(i);
+        currentClawPosition = i;
+        delay(1);
+    }
+    for(int i = currentClawPosition; i < 1800; i++){
+        clawServo.writeMicroseconds(i);
+        currentClawPosition = i;
+        delay(1);
+    }
+  }
+}
+
+void paradeWave(){
+  clawServo.writeMicroseconds(1300);
+  currentClawPosition = 1300;
+
+  for(int numWaves = 0; numWaves < 6; numWaves++){
+    rotate(LEFT);
+    delay(500);
+    rotate(RIGHT);
+    delay(500);
+  }
+}
+
+void goCrazy(){
+  for(int numCrazy = 0; numCrazy < 15; numCrazy++){
+    armServo.writeMicroseconds(800);
+    delay(100);
+    armServo.writeMicroseconds(1600);
+    delay(100);
   }
 }
