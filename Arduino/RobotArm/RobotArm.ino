@@ -16,7 +16,7 @@
 #define motorSpeedPin 5
 #define motorDir1Pin 4
 #define motorDir2Pin 2
-#define motorSpeed 200
+#define motorSpeed 250
 
 /** Arm and Claw Constants **/
 #define armPin 9
@@ -45,6 +45,7 @@ controls currentControl;
 int currentArmPosition;
 int currentClawPosition;
 
+
 void setup() {
   Serial.begin(9600);
   irrecv.enableIRIn();
@@ -61,42 +62,71 @@ void setup() {
 
 void loop() {
 
-  handleIRInput(&currentControl);
+  handleSerialInput();
+  handleIRInput();
   rotate(currentControl);
   moveArm(currentControl);
   openCloseClaw(currentControl);
    
 }
 
-void handleIRInput(controls *current){
+void handleIRInput(){
   if(irrecv.decode()){
     if(irrecv.decodedIRData.decodedRawData != IRRepeat){
       switch(irrecv.decodedIRData.decodedRawData){
         case IRLeft:
-          *current = LEFT;
+          currentControl = LEFT;
           break;
         case IRRight:
-          *current = RIGHT;
+          currentControl = RIGHT;
           break;
         case IRStop:
-          *current = NONE;
+          currentControl = NONE;
           break;
         case IRUp:
-          *current = UP;
+          currentControl = UP;
           break;
         case IRDown:
-          *current = DOWN;
+          currentControl = DOWN;
           break;
         case IROpen:
-          *current = OPEN;
+          currentControl = OPEN;
           break;
         case IRClose:
-          *current = CLOSE;
+          currentControl = CLOSE;
           break;
       }
     }
 
     irrecv.resume();
+  }
+}
+
+void handleSerialInput(){  
+  if (Serial.available())  {
+    switch(Serial.read()){
+      case '0':
+        currentControl = NONE;
+        break;
+      case '1':
+        currentControl = LEFT;
+        break;
+      case '2':
+        currentControl = RIGHT;
+        break;
+      case '3':
+        currentControl = UP;
+        break;
+      case '4':
+        currentControl = DOWN;
+        break;
+      case '5':
+        currentControl = OPEN;
+        break;
+      case '6':
+        currentControl = CLOSE;
+        break;
+    }
   }
 }
 
@@ -121,7 +151,7 @@ void rotate(controls current){
 void moveArm(controls current){
   switch(current){
     case UP:
-      addArmIncrement(currentArmPosition + 1, 1);
+      addArmIncrement(currentArmPosition + 1, 3);
       break;
     case DOWN:
       addArmIncrement(currentArmPosition - 1, 5);
