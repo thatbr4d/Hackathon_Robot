@@ -1,5 +1,7 @@
 #include <Servo.h>
 #include <IRremote.h>
+#include <Ethernet.h>
+#include "ThingSpeak.h"
 
 /** IR Constants **/
 #define IRRepeat 0
@@ -47,7 +49,16 @@ Servo clawServo;
 controls currentControl;
 int currentArmPosition;
 int currentClawPosition;
+int soundVal;
+int desiredSoundPos;
 
+/** Ethernet and Thingspeak IoT **/
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+IPAddress ip(192, 168, 0, 177);
+IPAddress myDns(192, 168, 0, 1);
+EthernetClient client;
+unsigned long myChannelNumber = 1448050;
+const char * myWriteAPIKey = "H7J3KD5O031GVN65";
 
 void setup() {
   Serial.begin(9600);
@@ -58,13 +69,15 @@ void setup() {
   armServo.attach(armPin);
   clawServo.attach(clawPin);
 
+  InitializeEthernetAndThingSpeak();
+  
   //set initial positions
   returnUp();
   closeClaw();
 }
 
 void loop() {
-
+  
   handleSerialInput();
   handleIRInput();  
   rotate(currentControl);
@@ -80,33 +93,43 @@ void handleIRInput(){
       switch(irrecv.decodedIRData.decodedRawData){
         case IRLeft:
           currentControl = LEFT;
+          SendTelemetryToThingSpeak("Rotate Left", "Infrared Communication");
           break;
         case IRRight:
           currentControl = RIGHT;
+          SendTelemetryToThingSpeak("Rotate Right", "Infrared Communication");
           break;
         case IRStop:
           currentControl = NONE;
+          SendTelemetryToThingSpeak("Pause", "Infrared Communication");
           break;
         case IRUp:
           currentControl = UP;
+          SendTelemetryToThingSpeak("Arm Up", "Infrared Communication");
           break;
         case IRDown:
           currentControl = DOWN;
+          SendTelemetryToThingSpeak("Arm Down", "Infrared Communication");
           break;
         case IROpen:
-          currentControl = OPEN;
+          currentControl = OPEN;          
+          SendTelemetryToThingSpeak("Claw Open", "Infrared Communication");
           break;
         case IRClose:
           currentControl = CLOSE;
+          SendTelemetryToThingSpeak("Claw Close", "Infrared Communication");
           break;
         case IRWave:
           wave();
+          SendTelemetryToThingSpeak("Wave", "Infrared Communication");
           break;
         case IRParade:
           paradeWave();
+          SendTelemetryToThingSpeak("Parade Wave", "Infrared Communication");
           break;
         case IRCrazy:
           goCrazy();
+          SendTelemetryToThingSpeak("Go Crazy", "Infrared Communication");
           break;
       }
     }
@@ -120,24 +143,31 @@ void handleSerialInput(){
     switch(Serial.read()){
       case '0':
         currentControl = NONE;
+        SendTelemetryToThingSpeak("Pause", "Serial Communication");
         break;
       case '1':
         currentControl = LEFT;
+        SendTelemetryToThingSpeak("Rotate Left", "Serial Communication");
         break;
       case '2':
         currentControl = RIGHT;
+        SendTelemetryToThingSpeak("Rotate Right", "Serial Communication");
         break;
       case '3':
         currentControl = UP;
+        SendTelemetryToThingSpeak("Arm Up", "Serial Communication");
         break;
       case '4':
         currentControl = DOWN;
+        SendTelemetryToThingSpeak("Arm Down", "Serial Communication");
         break;
       case '5':
         currentControl = OPEN;
+        SendTelemetryToThingSpeak("Claw Open", "Serial Communication");
         break;
       case '6':
         currentControl = CLOSE;
+        SendTelemetryToThingSpeak("Close Close", "Serial Communication");
         break;
     }
   }
@@ -207,7 +237,7 @@ void goDown(){
 void returnUp(){
   if(currentArmPosition == 0)
     currentArmPosition = armPositionDown;
-  
+
   for(int i = armPositionDown; i < armPositionUp; i++){
     addArmIncrement(i, 1);
   }
@@ -271,4 +301,51 @@ void goCrazy(){
     armServo.writeMicroseconds(1600);
     delay(100);
   }
+}
+
+void SendTelemetryToThingSpeak(String origin, String process){
+  ThingSpeak.setField(1, origin);
+  ThingSpeak.setField(2, process);
+  ThingSpeak.setField(3, random(0, 100));
+  ThingSpeak.setField(4, random(0, 100));
+
+  int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+  if(x == 200){
+    Serial.println("Channel update successful.");
+  }
+  else{
+    Serial.println("Problem updating channel. HTTP error code " + String(x));
+  }
+}
+
+void InitializeEthernetAndThingSpeak(){
+  Ethernet.init(10);  // Most Arduino Ethernet hardware
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for Leonardo native USB port only
+  }
+      
+  // start the Ethernet connection:
+  Serial.println("Initialize Ethernet with DHCP:");
+  if (Ethernet.begin(mac) == 0) {
+    Serial.println("Failed to configure Ethernet using DHCP");
+    // Check for Ethernet hardware present
+    if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+      while (true) {
+        delay(1); // do nothing, no point running without Ethernet hardware
+      }
+    }
+    if (Ethernet.linkStatus() == LinkOFF) {
+      Serial.println("Ethernet cable is not connected.");
+    }
+    // try to congifure using IP address instead of DHCP:
+    Ethernet.begin(mac, ip, myDns);
+  } else {
+    Serial.print("  DHCP assigned IP ");
+    Serial.println(Ethernet.localIP());
+  }
+  // give the Ethernet shield a second to initialize:
+  delay(1000);
+  
+  ThingSpeak.begin(client);  // Initialize ThingSpeak
 }
